@@ -30,11 +30,9 @@ The project includes visualization tools that show:
 bash
 Clone the repository
 git clone https://github.com/mabinhang2021/ASM-Using-Muct-Face.git
-Install required packages
-pip install numpy opencv-python matplotlib scipy scikit-learn
 
 ## Usage
-python
+
 (1)Download  full MUCT Dataset
 1. Visit the [MUCT Database](https://github.com/StephenMilborrow/muct)
 2. Download required files:
@@ -52,6 +50,8 @@ The model demonstrates:
 - Successful alignment of face shapes
 - Clear visualization of shape variations
 - Effective PCA-based shape modeling
+![Snipaste_2024-11-11_19-57-36](https://github.com/user-attachments/assets/0a5fd431-0304-4073-b484-06a1b12888c5)
+![Snipaste_2024-11-11_19-57-47](https://github.com/user-attachments/assets/7bb388d5-88ac-457d-83cf-25aee0d666dd)
 
 
 
