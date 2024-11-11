@@ -1,0 +1,119 @@
+import numpy as np
+import cv2
+import matplotlib.pyplot as plt
+from sklearn.decomposition import PCA
+
+class SimpleASM:
+    def __init__(self):
+        # Create a simple face with just 8 key points (using float type)
+        self.landmarks = np.array([
+            [100., 50.],  # Left eye left corner
+            [120., 50.],  # Left eye right corner
+            [180., 50.],  # Right eye left corner
+            [200., 50.],  # Right eye right corner
+            [150., 80.],  # Nose tip
+            [120., 120.], # Left mouth corner
+            [180., 120.], # Right mouth corner
+            [150., 110.]  # Top lip center
+        ], dtype=np.float64)  # Important: use float type!
+        
+    def generate_training_data(self, n_samples=100):
+        """Generate variations of face shape"""
+        training_shapes = []
+        
+        for _ in range(n_samples):
+            shape = self.landmarks.copy()
+            
+            # Add some variations
+            # 1. Smile variation (mouth points move)
+            smile = np.random.normal(0, 5)
+            shape[5:8, 1] += smile  # Move mouth points
+            
+            # 2. Eye width variation
+            eye_width = np.random.normal(0, 2)
+            shape[[0,3], 0] += eye_width  # Outer eye corners
+            
+            # Add some random noise
+            noise = np.random.normal(0, 1, shape.shape)
+            shape += noise
+            
+            training_shapes.append(shape)
+            
+        return np.array(training_shapes)
+    
+    def visualize_shape(self, shape, title="Face Shape"):
+        """Visualize face shape"""
+        plt.figure(figsize=(8, 8))
+        
+        # Draw eyes
+        plt.plot(shape[0:2, 0], shape[0:2, 1], 'b-')  # Left eye
+        plt.plot(shape[2:4, 0], shape[2:4, 1], 'b-')  # Right eye
+        
+        # Draw nose
+        plt.plot([shape[4, 0]], [shape[4, 1]], 'g.')
+        
+        # Draw mouth
+        plt.plot(shape[5:8, 0], shape[5:8, 1], 'r-')
+        
+        # Plot all points
+        plt.plot(shape[:, 0], shape[:, 1], 'k.')
+        
+        plt.title(title)
+        plt.axis('equal')
+        plt.grid(True)
+
+def demonstrate_asm_basics():
+    # Create ASM instance
+    asm = SimpleASM()
+    
+    # Generate training data
+    print("Generating training shapes...")
+    training_shapes = asm.generate_training_data(100)
+    
+    # Apply PCA
+    print("Applying PCA...")
+    shapes_flat = training_shapes.reshape(len(training_shapes), -1)
+    pca = PCA()
+    pca.fit(shapes_flat)
+    
+    # Visualize
+    plt.figure(figsize=(15, 5))
+    
+    # 1. Mean Shape
+    plt.subplot(131)
+    mean_shape = pca.mean_.reshape(-1, 2)
+    plt.plot(mean_shape[:, 0], mean_shape[:, 1], 'k.-')
+    plt.title('Mean Face Shape')
+    plt.axis('equal')
+    plt.grid(True)
+    
+    # 2. First Component Variation
+    plt.subplot(132)
+    comp1_shape = mean_shape + pca.components_[0].reshape(-1, 2) * 10
+    plt.plot(mean_shape[:, 0], mean_shape[:, 1], 'k.-', label='Mean')
+    plt.plot(comp1_shape[:, 0], comp1_shape[:, 1], 'r.-', label='Variation')
+    plt.title('First Component\n(Usually Smile)')
+    plt.legend()
+    plt.axis('equal')
+    plt.grid(True)
+    
+    # 3. Second Component Variation
+    plt.subplot(133)
+    comp2_shape = mean_shape + pca.components_[1].reshape(-1, 2) * 10
+    plt.plot(mean_shape[:, 0], mean_shape[:, 1], 'k.-', label='Mean')
+    plt.plot(comp2_shape[:, 0], comp2_shape[:, 1], 'b.-', label='Variation')
+    plt.title('Second Component\n(Usually Eye Width)')
+    plt.legend()
+    plt.axis('equal')
+    plt.grid(True)
+    
+    plt.tight_layout()
+    plt.show()
+    
+    # Show explained variance
+    print("\nExplained variance ratios:")
+    for i, ratio in enumerate(pca.explained_variance_ratio_[:3]):
+        print(f"Component {i+1}: {ratio*100:.1f}%")
+
+if __name__ == "__main__":
+    demonstrate_asm_basics()

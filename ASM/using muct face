@@ -1,0 +1,231 @@
+import pandas as pd
+import numpy as np
+import cv2
+import matplotlib.pyplot as plt
+import os
+from zipfile import ZipFile
+from scipy.linalg import orthogonal_procrustes
+from sklearn.decomposition import PCA
+
+class ActiveShapeModel:
+    def __init__(self, n_components=10):
+        self.n_components = n_components
+        self.mean_shape = None
+        self.pca = None
+        
+    def procrustes_analysis(self, shape, reference):
+        """Align shape to reference using Procrustes analysis"""
+        # Center both shapes
+        shape_centered = shape - np.mean(shape, axis=0)
+        reference_centered = reference - np.mean(reference, axis=0)
+        
+        # Calculate optimal rotation
+        R, _ = orthogonal_procrustes(shape_centered, reference_centered)
+        
+        # Apply transformation
+        aligned_shape = np.dot(shape_centered, R)
+        
+        return aligned_shape
+        
+    def align_shapes(self, shapes):
+        """Align all shapes to the first shape"""
+        n_shapes = len(shapes)
+        aligned_shapes = shapes.copy()
+        
+        # Use first shape as initial reference
+        reference = shapes[0]
+        
+        for _ in range(3):  # Few iterations for alignment
+            # Align all shapes to reference
+            for i in range(n_shapes):
+                aligned_shapes[i] = self.procrustes_analysis(shapes[i], reference)
+            
+            # Update reference to mean shape
+            reference = np.mean(aligned_shapes, axis=0)
+            
+        return aligned_shapes
+        
+    def fit(self, shapes):
+        """Train the shape model using PCA"""
+        print("Aligning shapes...")
+        aligned_shapes = self.align_shapes(shapes)
+        
+        print("Computing mean shape...")
+        self.mean_shape = np.mean(aligned_shapes, axis=0)
+        
+        print("Applying PCA...")
+        # Reshape for PCA (flatten x,y coordinates)
+        X = aligned_shapes.reshape(len(aligned_shapes), -1)
+        
+        # Apply PCA
+        self.pca = PCA(n_components=self.n_components)
+        self.pca.fit(X)
+        
+        # Print explained variance
+        total_var = sum(self.pca.explained_variance_ratio_) * 100
+        print(f"Total variance explained by {self.n_components} components: {total_var:.2f}%")
+        
+    def generate_shape(self, params=None):
+        """Generate a new shape using the PCA model"""
+        if params is None:
+            # Generate random parameters within ±3 standard deviations
+            params = np.random.randn(self.n_components) * 3
+            
+        # Constrain parameters to ±3 standard deviations
+        params = np.clip(params, -3, 3)
+        
+        # Generate shape using PCA model
+        shape_vector = self.pca.mean_ + self.pca.components_.T.dot(params)
+        
+        # Reshape back to 2D coordinates
+        return shape_vector.reshape(-1, 2)
+
+class MUCTDataLoader:
+    def __init__(self, base_dir='muct_data'):
+        self.base_dir = base_dir
+        self.image_dir = os.path.join(base_dir, 'jpg')
+        self.landmarks_file = os.path.join(base_dir, 'muct-landmarks/muct76-opencv.csv')
+        
+    def extract_dataset(self):
+        """Extract MUCT dataset from local zip files"""
+        # Create base directory if it doesn't exist
+        if not os.path.exists(self.base_dir):
+            os.makedirs(self.base_dir)
+            
+        # Extract images
+        images_zip = os.path.join(self.base_dir, 'muct-images.zip')
+        if os.path.exists(images_zip) and not os.path.exists(self.image_dir):
+            print("Extracting images...")
+            with ZipFile(images_zip) as zip_file:
+                zip_file.extractall(self.base_dir)
+                 # This creates:
+                # muct_data/
+            #   └── jpg/
+            #       ├── i000qa-fn.jpg
+            #       ├── i001qa-fn.jpg
+            #       └── ... more images
+                
+        # Extract landmarks
+        landmarks_zip = os.path.join(self.base_dir, 'muct-landmarks.zip')
+        if os.path.exists(landmarks_zip) and not os.path.exists(os.path.dirname(self.landmarks_file)):
+            print("Extracting landmarks...")
+            with ZipFile(landmarks_zip) as zip_file:
+                zip_file.extractall(self.base_dir)
+                 # This creates:
+                # muct_data/
+            #   └── muct-landmarks/
+            #       └── muct76-opencv.csv
+    
+    def load_data(self, max_images=100):
+        """Load images and landmarks"""
+        # Read landmarks CSV
+        landmarks_df = pd.read_csv(self.landmarks_file)
+        
+        training_shapes = []
+        training_images = []
+        count = 0
+        
+        # Group by image
+        for name, group in landmarks_df.groupby('name'):
+            if count >= max_images:
+                break
+                
+            # Load image
+            image_path = os.path.join(self.image_dir, f"{name}.jpg")
+            if not os.path.exists(image_path):
+                continue
+                
+            image = cv2.imread(image_path)
+            if image is None:
+                continue
+                
+            # Convert to grayscale
+            gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+            
+            # Extract landmarks
+            landmarks = []
+            x_cols = [col for col in group.columns if col.startswith('x')]
+            y_cols = [col for col in group.columns if col.startswith('y')]
+            
+            x_cols.sort()
+            y_cols.sort()
+            
+            for x_col, y_col in zip(x_cols, y_cols):
+                x = group[x_col].iloc[0]
+                y = group[y_col].iloc[0]
+                landmarks.append([x, y])
+            
+            training_shapes.append(np.array(landmarks))
+            training_images.append(gray)
+            count += 1
+            
+        return np.array(training_shapes), training_images
+
+def visualize_shape_variations(asm, base_image):
+    """Visualize shape variations with clearer differences"""
+    plt.figure(figsize=(15, 15))
+    
+    # 1. Mean Shape (always same)
+    plt.subplot(311)
+    plt.imshow(base_image, cmap='gray')
+    plt.plot(asm.mean_shape[:, 0], asm.mean_shape[:, 1], 'g.', 
+            markersize=10, label='Mean Shape')
+    plt.title('Mean Shape (Average Face)')
+    plt.legend()
+    
+    # 2. Extreme Variations (one component at a time)
+    plt.subplot(312)
+    plt.imshow(base_image, cmap='gray')
+    colors = ['r', 'b', 'y']  # Different colors for each component
+    for i in range(3):  # Show first 3 components
+        params = np.zeros(asm.n_components)
+        params[i] = 3
+        shape = asm.generate_shape(params)
+        plt.plot(shape[:, 0], shape[:, 1], colors[i]+'.',
+                markersize=10, label=f'Component {i+1}')
+    plt.plot(asm.mean_shape[:, 0], asm.mean_shape[:, 1], 'g.',
+            markersize=10, alpha=0.3, label='Mean (reference)')
+    plt.title('First 3 Component Variations vs Mean')
+    plt.legend()
+    
+    # 3. Random Shapes (different each time)
+    plt.subplot(313)
+    plt.imshow(base_image, cmap='gray')
+    for i in range(3):  # Show 3 random shapes
+        random_shape = asm.generate_shape()
+        plt.plot(random_shape[:, 0], random_shape[:, 1], colors[i]+'.',
+                markersize=10, label=f'Random Shape {i+1}')
+    plt.plot(asm.mean_shape[:, 0], asm.mean_shape[:, 1], 'g.',
+            markersize=10, alpha=0.3, label='Mean (reference)')
+    plt.title('Three Different Random Shapes vs Mean')
+    plt.legend()
+    
+    plt.tight_layout()
+    plt.show()
+
+def main():
+    # Create data loader
+    loader = MUCTDataLoader()
+    
+    # Extract dataset
+    print("Extracting dataset...")
+    loader.extract_dataset()
+    
+    # Load data
+    print("Loading training data...")
+    training_shapes, training_images = loader.load_data(max_images=200)  # Use more images
+    
+    # Create and train ASM
+    print("Training ASM model...")
+    asm = ActiveShapeModel(n_components=40)  # Use more components
+    asm.fit(training_shapes)
+    
+    # Visualize shape variations
+    print("Visualizing shape variations...")
+    for i in range(3):  # Show variations on first 3 images
+        print(f"Showing variations on image {i}")
+        visualize_shape_variations(asm, training_images[i])
+        plt.show()
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,116 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.decomposition import PCA
+
+class FacePointsDemo:
+    def __init__(self):
+        # Define key facial points (simplified) - using float type
+        self.base_face = np.array([
+            # Eyes (4 points each)
+            [100., 100.], [120., 95.], [140., 100.], [120., 105.],  # Left eye
+            [160., 100.], [180., 95.], [200., 100.], [180., 105.],  # Right eye
+            # Nose (3 points)
+            [150., 120.], [140., 130.], [160., 130.],
+            # Mouth (5 points)
+            [130., 160.], [150., 155.], [170., 160.], [150., 165.], [150., 160.]
+        ], dtype=np.float64)  # Explicitly set float type
+        
+    def generate_training_data(self, n_samples=100):
+        """Generate variations of face shapes"""
+        training_shapes = []
+        
+        for _ in range(n_samples):
+            # Create random variation
+            new_shape = self.base_face.copy()
+            
+            # 1. Smile variation (mouth corners move together)
+            smile_amount = np.random.normal(0, 5)
+            new_shape[11:14, 1] += smile_amount  # Mouth corners and top
+            
+            # 2. Eye variation (eyes open/close together)
+            eye_amount = np.random.normal(0, 3)
+            new_shape[1:4:2, 1] += eye_amount  # Left eye top/bottom
+            new_shape[5:8:2, 1] += eye_amount  # Right eye top/bottom
+            
+            # 3. Add some random noise
+            noise = np.random.normal(0, 1, new_shape.shape)
+            new_shape += noise
+            
+            training_shapes.append(new_shape)
+            
+        return np.array(training_shapes)
+
+    def visualize_face(self, points, title="Face"):
+        """Visualize face points"""
+        plt.figure(figsize=(8, 8))
+        
+        # Draw eyes
+        plt.plot(points[0:4, 0], points[0:4, 1], 'b-')  # Left eye
+        plt.plot(points[4:8, 0], points[4:8, 1], 'b-')  # Right eye
+        
+        # Draw nose
+        plt.plot(points[8:11, 0], points[8:11, 1], 'g-')
+        
+        # Draw mouth
+        plt.plot(points[11:15, 0], points[11:15, 1], 'r-')
+        
+        # Plot all points
+        plt.plot(points[:, 0], points[:, 1], 'k.')
+        
+        plt.title(title)
+        plt.axis('equal')
+        plt.grid(True)
+        
+    def demonstrate_pca_variations(self):
+        """Show how PCA captures point movements"""
+        # Generate training data
+        print("Generating face variations...")
+        training_shapes = self.generate_training_data(100)
+        
+        # Apply PCA
+        print("Applying PCA...")
+        pca = PCA()
+        shapes_flat = training_shapes.reshape(len(training_shapes), -1)
+        pca.fit(shapes_flat)
+        
+        # Show variations along first two components
+        plt.figure(figsize=(15, 5))
+        
+        # 1. Mean Shape
+        plt.subplot(131)
+        mean_shape = pca.mean_.reshape(-1, 2)
+        self.visualize_face(mean_shape, "Mean Face Shape")
+        
+        # 2. First Component Variation
+        plt.subplot(132)
+        comp1_shape = mean_shape + pca.components_[0].reshape(-1, 2) * 10
+        self.visualize_face(comp1_shape, "First PCA Component")
+        
+        # 3. Second Component Variation
+        plt.subplot(133)
+        comp2_shape = mean_shape + pca.components_[1].reshape(-1, 2) * 10
+        self.visualize_face(comp2_shape, "Second PCA Component")
+        
+        plt.tight_layout()
+        plt.show()
+        
+        # Show explained variance
+        print("\nExplained variance ratios:")
+        for i, var in enumerate(pca.explained_variance_ratio_[:5]):
+            print(f"Component {i+1}: {var*100:.1f}%")
+
+def main():
+    demo = FacePointsDemo()
+    
+    # Show how PCA captures face variations
+    print("Demonstrating how PCA captures face point relationships...")
+    demo.demonstrate_pca_variations()
+    
+    print("\nKey Points to Understand:")
+    print("1. PCA finds main ways points move together")
+    print("2. First component often captures largest variation (e.g., smile)")
+    print("3. Second component might capture eye movements")
+    print("4. Each component represents a 'valid' way points can move")
+
+if __name__ == "__main__":
+    main()

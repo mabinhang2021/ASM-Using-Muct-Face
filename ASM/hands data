@@ -1,0 +1,144 @@
+import numpy as np
+import cv2
+from scipy.linalg import orthogonal_procrustes
+from sklearn.decomposition import PCA
+import matplotlib.pyplot as plt
+
+class ActiveShapeModel:
+    def __init__(self, n_components=10):
+        self.n_components = n_components
+        self.mean_shape = None
+        self.pca = None
+        
+    def procrustes_analysis(self, shape, reference):
+        """Align shape to reference using Procrustes analysis"""
+        try:
+            # Center both shapes
+            shape_centered = shape - np.mean(shape, axis=0)
+            reference_centered = reference - np.mean(reference, axis=0)
+            
+            # Check for zero matrices
+            if np.all(shape_centered == 0) or np.all(reference_centered == 0):
+                print("Warning: Zero matrix encountered in procrustes_analysis")
+                return shape
+            
+            # Calculate optimal rotation
+            R, _ = orthogonal_procrustes(shape_centered, reference_centered)
+            
+            # Apply transformation
+            aligned_shape = np.dot(shape_centered, R)
+            
+            return aligned_shape
+            
+        except Exception as e:
+            print(f"Error in procrustes_analysis: {e}")
+            return shape
+    
+    def align_shapes(self, shapes):
+        """Align all shapes to the mean shape"""
+        n_shapes = len(shapes)
+        aligned_shapes = shapes.copy()
+        
+        # Initialize mean shape
+        mean_shape = np.mean(shapes, axis=0)
+        
+        for _ in range(10):
+            for i in range(n_shapes):
+                aligned_shapes[i] = self.procrustes_analysis(shapes[i], mean_shape)
+            new_mean = np.mean(aligned_shapes, axis=0)
+            if np.allclose(mean_shape, new_mean):
+                break
+            mean_shape = new_mean
+            
+        return aligned_shapes, mean_shape
+
+def create_synthetic_training_data(n_shapes=20, n_points=20):
+    """Create synthetic training data for demonstration"""
+    training_shapes = []
+    training_images = []
+    
+    for _ in range(n_shapes):
+        # Create blank image
+        img = np.zeros((300, 300), dtype=np.uint8)
+        
+        # Generate ellipse parameters
+        center = np.array([150, 150])
+        # Change the axes ranges for different ellipse shapes
+        axes = np.random.randint(30, 120, 2)  # more variation in shape
+        angle = np.random.rand() * 360
+        
+        # Draw ellipse
+        cv2.ellipse(img, tuple(map(int, center)), tuple(map(int, axes)), 
+                   angle, 0, 360, 255, 2)
+        
+        # Generate landmarks around ellipse
+        t = np.linspace(0, 2*np.pi, n_points)
+        x = center[0] + axes[0] * np.cos(t)
+        y = center[1] + axes[1] * np.sin(t)
+        shape = np.column_stack([x, y])
+        
+        training_shapes.append(shape)
+        training_images.append(img)
+    
+    return np.array(training_shapes), training_images
+
+def main():
+    try:
+        # Create synthetic training data
+        print("Creating synthetic training data...")
+        training_shapes, training_images = create_synthetic_training_data(n_shapes=20, n_points=40)
+        
+        # Create and train ASM
+        print("Training ASM model...")
+        asm = ActiveShapeModel(n_components=5)
+        
+        # Align shapes and get mean shape
+        print("Aligning shapes...")
+        aligned_shapes, mean_shape = asm.align_shapes(training_shapes)
+        asm.mean_shape = mean_shape
+        
+        # Train shape model using PCA
+        print("Performing PCA...")
+        X = aligned_shapes.reshape(len(aligned_shapes), -1)
+        asm.pca = PCA(n_components=asm.n_components)
+        asm.pca.fit(X)
+        
+        # Test on first training image
+        test_image = training_images[0]
+        
+        # Create initial shape
+        print("Creating initial shape...")
+        initial_shape = mean_shape + np.random.randn(*mean_shape.shape) * 20
+        
+        # Visualize results
+        print("Visualizing results...")
+        plt.figure(figsize=(12, 4))
+        
+        plt.subplot(131)
+        plt.imshow(test_image, cmap='gray')
+        plt.plot(initial_shape[:, 0], initial_shape[:, 1], 'r.', label='Initial')
+        plt.title('Initial Shape')
+        plt.legend()
+        
+        plt.subplot(132)
+        plt.imshow(test_image, cmap='gray')
+        plt.plot(mean_shape[:, 0], mean_shape[:, 1], 'g.', label='Mean Shape')
+        plt.title('Mean Shape')
+        plt.legend()
+        
+        plt.subplot(133)
+        plt.imshow(test_image, cmap='gray')
+        plt.plot(initial_shape[:, 0], initial_shape[:, 1], 'r.', label='Initial')
+        plt.plot(mean_shape[:, 0], mean_shape[:, 1], 'g.', label='Mean')
+        plt.title('Comparison')
+        plt.legend()
+        
+        plt.tight_layout()
+        plt.show()
+        
+    except Exception as e:
+        print(f"Error in main: {e}")
+        raise
+
+if __name__ == "__main__":
+    main()

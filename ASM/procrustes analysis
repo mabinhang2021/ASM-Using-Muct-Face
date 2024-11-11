@@ -1,0 +1,71 @@
+import numpy as np
+from scipy.linalg import orthogonal_procrustes
+
+def show_procrustes_steps():
+    # 1. Two simple faces (3 points: eyes and nose)
+    face1 = np.array([
+        [100, 50],   # Left eye
+        [140, 50],   # Right eye
+        [120, 80]    # Nose
+    ])
+    
+    face2 = np.array([
+        [200, 150],  # Same face but shifted
+        [240, 150],  # and slightly rotated
+        [215, 175]
+    ])
+    
+    # 2. Center both faces (remove translation)
+    face1_mean = np.mean(face1, axis=0)  # [120, 60]
+    face2_mean = np.mean(face2, axis=0)  # [218.33, 158.33]
+    
+    face1_centered = face1 - face1_mean
+    # face1_centered = [
+    #   [-20, -10],  # Left eye relative to center
+    #   [20, -10],   # Right eye relative to center
+    #   [0, 20]      # Nose relative to center
+    # ]
+    
+    face2_centered = face2 - face2_mean
+    # Similar structure but might be rotated
+    
+    # 3. Find best rotation
+    R, _ = orthogonal_procrustes(face2_centered, face1_centered)
+    
+    # 4. Apply rotation
+    face2_aligned = np.dot(face2_centered, R)
+    
+    # Visualize each step
+    import matplotlib.pyplot as plt
+    
+    plt.figure(figsize=(15, 5))
+    
+    # Original faces
+    plt.subplot(131)
+    plt.plot(face1[:,0], face1[:,1], 'bo-', label='Face 1')
+    plt.plot(face2[:,0], face2[:,1], 'ro-', label='Face 2')
+    plt.title('Original Faces')
+    plt.legend()
+    plt.grid(True)
+    
+    # Centered faces
+    plt.subplot(132)
+    plt.plot(face1_centered[:,0], face1_centered[:,1], 'bo-', label='Face 1 Centered')
+    plt.plot(face2_centered[:,0], face2_centered[:,1], 'ro-', label='Face 2 Centered')
+    plt.title('After Centering')
+    plt.legend()
+    plt.grid(True)
+    
+    # Final alignment
+    plt.subplot(133)
+    plt.plot(face1_centered[:,0], face1_centered[:,1], 'bo-', label='Face 1')
+    plt.plot(face2_aligned[:,0], face2_aligned[:,1], 'ro-', label='Face 2 Aligned')
+    plt.title('After Rotation')
+    plt.legend()
+    plt.grid(True)
+    
+    plt.tight_layout()
+    plt.show()
+
+# Run the example
+show_procrustes_steps()

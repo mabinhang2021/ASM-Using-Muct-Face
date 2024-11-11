@@ -1,0 +1,60 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+def explain_training_data():
+    # Original face shape (just mouth points for simplicity)
+    original_shape = np.array([
+        [120., 120.],  # Left mouth corner
+        [180., 120.],  # Right mouth corner
+        [150., 110.]   # Top lip center
+    ])
+    
+    # Generate 5 different variations (normally we use 100)
+    n_samples = 5
+    training_shapes = []
+    
+    plt.figure(figsize=(15, 3))
+    
+    # Plot original shape
+    plt.subplot(161)
+    plt.plot(original_shape[:, 0], original_shape[:, 1], 'k.-', label='Original')
+    plt.title('Original')
+    plt.grid(True)
+    
+    # Generate and plot variations
+    for i in range(n_samples):
+        # Copy original shape
+        new_shape = original_shape.copy()
+        
+        # Add smile variation (random up/down movement)
+        smile = np.random.normal(0, 5)  # Random number around 0 (±5)
+        new_shape[:, 1] += smile  # Move all points up or down
+        
+        # Add to training set
+        training_shapes.append(new_shape)
+        
+        # Plot this variation
+        plt.subplot(161 + i + 1)
+        plt.plot(original_shape[:, 0], original_shape[:, 1], 'k.--', alpha=0.3, label='Original')
+        plt.plot(new_shape[:, 0], new_shape[:, 1], 'r.-', label=f'Smile: {smile:.1f}')
+        plt.title(f'Sample {i+1}')
+        plt.grid(True)
+    
+    plt.tight_layout()
+    plt.show()
+    
+    print("\nTraining Shapes Array:")
+    print(f"Shape: {np.array(training_shapes).shape}")
+    print("\nIt contains:")
+    print(f"- {n_samples} different face shapes")
+    print("- Each shape has 3 points")
+    print("- Each point has x,y coordinates")
+    
+    # Show the actual data
+    print("\nActual Data:")
+    for i, shape in enumerate(training_shapes):
+        print(f"\nShape {i+1}:")
+        print(shape)
+
+if __name__ == "__main__":
+    explain_training_data()

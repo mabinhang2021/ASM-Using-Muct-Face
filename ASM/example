@@ -1,0 +1,88 @@
+import numpy as np
+from scipy.linalg import orthogonal_procrustes
+import matplotlib.pyplot as plt
+
+# Let's create three simple triangle faces (3 points: eyes and nose)
+faces = [
+    # Face 1 (centered)
+    np.array([
+        [100, 50],  # Left eye
+        [140, 50],  # Right eye
+        [120, 80]   # Nose
+    ]),
+    
+    # Face 2 (shifted right and rotated)
+    np.array([
+        [200, 150],  
+        [240, 150],
+        [215, 175]
+    ]),
+    
+    # Face 3 (shifted left)
+    np.array([
+        [50, 100],
+        [90, 100],
+        [70, 130]
+    ])
+]
+
+def show_alignment_process():
+    plt.figure(figsize=(20, 5))
+    
+    # 1. Show original faces
+    plt.subplot(141)
+    for face in faces:
+        plt.plot(face[:,0], face[:,1], 'o-', label='Face')
+    plt.title('Original Faces')
+    plt.grid(True)
+    
+    # 2. Show procrustes_analysis on one face
+    reference = faces[0]  # Use first face as reference
+    face_to_align = faces[1]
+    
+    # Center both
+    ref_centered = reference - np.mean(reference, axis=0)
+    face_centered = face_to_align - np.mean(face_to_align, axis=0)
+    
+    plt.subplot(142)
+    plt.plot(ref_centered[:,0], ref_centered[:,1], 'bo-', label='Reference')
+    plt.plot(face_centered[:,0], face_centered[:,1], 'ro-', label='Face to Align')
+    plt.title('After Centering\n(procrustes_analysis step 1)')
+    plt.grid(True)
+    plt.legend()
+    
+    # Find and apply rotation
+    R, _ = orthogonal_procrustes(face_centered, ref_centered)
+    face_aligned = np.dot(face_centered, R)
+    
+    plt.subplot(143)
+    plt.plot(ref_centered[:,0], ref_centered[:,1], 'bo-', label='Reference')
+    plt.plot(face_aligned[:,0], face_aligned[:,1], 'ro-', label='Face Aligned')
+    plt.title('After Rotation\n(procrustes_analysis complete)')
+    plt.grid(True)
+    plt.legend()
+    
+    # 3. Show all faces after align_shapes
+    aligned_faces = faces.copy()
+    reference = faces[0]
+    
+    # One iteration of align_shapes
+    for i in range(len(faces)):
+        # Center face
+        face_centered = faces[i] - np.mean(faces[i], axis=0)
+        ref_centered = reference - np.mean(reference, axis=0)
+        
+        # Find and apply rotation
+        R, _ = orthogonal_procrustes(face_centered, ref_centered)
+        aligned_faces[i] = np.dot(face_centered, R)
+    
+    plt.subplot(144)
+    for face in aligned_faces:
+        plt.plot(face[:,0], face[:,1], 'o-')
+    plt.title('All Faces Aligned\n(after align_shapes)')
+    plt.grid(True)
+    
+    plt.tight_layout()
+    plt.show()
+
+show_alignment_process()
